@@ -1,85 +1,37 @@
-name: AI PR Review
+- name: Review with GitHub Models
+  id: review
+  env:
+    GITHUB_PAT: ${{ secrets.PAT }}
+  run: |
 
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+    PROMPT=$(cat <<'PROMPT'
+Review this PR diff. Identify bugs, security concerns, performance issues, maintainability issues, and provide recommendations.
+PROMPT
+)
 
-permissions:
-  pull-requests: write
-  contents: read
-
-jobs:
-  review:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Get PR Diff
-        id: diff
-        run: |
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-
-          git diff \
-            origin/${{ github.event.pull_request.base.ref }}...HEAD \
-            > pr.diff
-
-          echo "DIFF<<EOF" >> $GITHUB_OUTPUT
-          cat pr.diff >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Review with GitHub Models
-        id: review
-        env:
-          GITHUB_PAT: ${{ secrets.PAT }}
-        run: |
-
-          RESPONSE=$(curl -s -L \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_PAT" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            -H "Content-Type: application/json" \
-            https://models.github.ai/inference/chat/completions \
-            -d @- <<EOF
+    jq -n \
+      --arg prompt "$PROMPT" \
+      --rawfile diff pr.diff \
+      '{
+        model:"openai/gpt-4.1",
+        messages:[
           {
-            "model":"openai/gpt-4.1",
-            "messages":[
-              {
-                "role":"system",
-                "content":"You are a senior software engineer performing pull request reviews."
-              },
-              {
-                "role":"user",
-                "content":"Review this PR diff. Identify bugs, security concerns, performance issues, maintainability issues, and provide recommendations:\n\n${{ steps.diff.outputs.DIFF }}"
-              }
-            ]
+            role:"system",
+            content:"You are a senior software engineer performing pull request reviews."
+          },
+          {
+            role:"user",
+            content:($prompt + "\n\n" + $diff)
           }
-          EOF
-          )
+        ]
+      }' > payload.json
 
-          echo "$RESPONSE" > response.json
-
-          REVIEW=$(jq -r '.choices[0].message.content' response.json)
-
-          {
-            echo "REVIEW<<EOF"
-            echo "$REVIEW"
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
-
-      - name: Post PR Comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const review = `${{ steps.review.outputs.REVIEW }}`;
-
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `## 🤖 AI PR Review\n\n${review}`
-            });
+    curl -s -L \
+      -X POST \
+      -H "Accept: application/vnd.github+json" \
+      -H "Authorization: Bearer $GITHUB_PAT" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      -H "Content-Type: application/json" \
+      https://models.github.ai/inference/chat/completions \
+      -d @payload.json \
+      > response.json
