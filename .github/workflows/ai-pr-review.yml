@@ -34,7 +34,7 @@ jobs:
       - name: Review with GitHub Models
         id: review
         env:
-          GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
+          GITHUB_PAT: ${{ secrets.PAT }}
         run: |
 
           RESPONSE=$(curl -s -L \
