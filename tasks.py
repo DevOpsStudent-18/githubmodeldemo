@@ -11,7 +11,7 @@ class TaskManager:
 
     def find_task(self, title):
         for task in self.tasks:
-            if task["title"] == title:
+            if task["title"].lower() == title.lower():
                 return task
 
         return None
