@@ -40,11 +40,10 @@ jobs:
                 },
                 {
                   role: "user",
-                  content: "Review this PR diff. Identify bugs, security concerns, performance issues, maintainability issues, and provide recommendations:\n\n" + $diff
+                  content: "Review this PR diff. Identify bugs, security concerns, performance issues, maintainability issues, and provide recommendations:\n\n\($diff)"
                 }
               ]
             }' > payload.json
-
       - name: Review with GitHub Models
         id: review
         env:
