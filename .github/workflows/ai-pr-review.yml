@@ -3,6 +3,8 @@ name: AI PR Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push: 
+    branches: [ feature/test ]
 
 permissions:
   pull-requests: write
